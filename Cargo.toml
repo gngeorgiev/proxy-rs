@@ -1,0 +1,16 @@
+[package]
+name = "proxy-rs"
+version = "0.1.0"
+authors = ["gngeorgiev <gngeorgiev.it@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fut_pool = { path = "../fut_pool" }
+fut_pool_tcp = { path = "../fut_pool/fut_pool_tcp" }
+tokio = "0.1"
+futures = { version = "0.3.0-alpha.16", package = "futures-preview", features = ["compat", "async-await", "nightly"] }
+failure = "0.1"
+crossbeam-channel = "0.3.8"
+http-muncher = "0.3"
