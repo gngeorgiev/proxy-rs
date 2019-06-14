@@ -6,6 +6,14 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "proxy_rs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "proxy_rs"
+path = "src/cli/main.rs"
+
 [dependencies]
 fut_pool = { path = "../fut_pool" }
 fut_pool_tcp = { path = "../fut_pool/fut_pool_tcp" }
@@ -14,3 +22,5 @@ futures = { version = "0.3.0-alpha.16", package = "futures-preview", features = 
 failure = "0.1"
 crossbeam-channel = "0.3.8"
 http-muncher = "0.3"
+log = "0.4"
+pretty_env_logger = "0.3"
