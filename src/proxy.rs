@@ -20,6 +20,11 @@ use http_muncher::{Parser, ParserHandler};
 
 use fut_pool::Pool;
 use fut_pool_tcp::TcpConnection;
+use crate::builder::ProxyBuilder;
+
+pub type ProxyEvent = Result<TcpStream, (TcpStream, io::Error)>;
+pub type ProxyEventReceiver = UnboundedReceiver<ProxyEvent>;
+type ProxyEventSender = UnboundedSender<ProxyEvent>;
 
 pub struct Proxy {
     pub(crate) bind_addr: SocketAddr,
@@ -28,37 +33,53 @@ pub struct Proxy {
 }
 
 impl Proxy {
-    pub async fn bind(mut self: Pin<&mut Self>, executor: TaskExecutor) -> io::Result<UnboundedReceiver<Result<TcpStream, (TcpStream, io::Error)>>> {
+    pub fn builder() -> ProxyBuilder {
+        ProxyBuilder::new()
+    }
+
+    pub fn bind(&self, executor: TaskExecutor) -> io::Result<ProxyEventReceiver> {
         let remote_addr = self.remote_addr;
         let pool = self.pool.clone();
 
         let listener = TcpListener::bind(&self.bind_addr)?;
-        let mut server = listener.incoming().compat();
+        let server = listener.incoming();
 
         let (s, r) = unbounded();
-        while let Some(raw_incoming_socket) = server.next().await {
-            let mut s = s.clone();
-            let incoming_socket = Socket::new(raw_incoming_socket.unwrap());
-            let pool = pool.clone();
-
-            let socket_future = async move {
-                let res = socket_handler(incoming_socket.clone(), pool).await;
-                let raw_incoming_socket = incoming_socket.raw();
-                match res {
-                    Ok(_) => s.send(Ok(raw_incoming_socket)),
-                    Err(err) => s.send(Err((raw_incoming_socket, err)))
-                }.await.expect("sending request/response result to channel");
-            };
-
-            executor.spawn(
-                socket_future
-                    .unit_error()
-                    .boxed()
-                    .compat()
-            );
-        }
+        let incoming_future = handle_incoming(executor.clone(), server, s, pool);
+        executor.spawn(
+            incoming_future
+                .unit_error()
+                .boxed()
+                .compat()
+        );
 
         Ok(r)
+    }
+}
+
+async fn handle_incoming(executor: TaskExecutor, server: Incoming, event_sender: ProxyEventSender, pool: Pool<TcpConnection>) {
+    let mut server = server.compat();
+
+    while let Some(raw_incoming_socket) = server.next().await {
+        let mut s = event_sender.clone();
+        let incoming_socket = Socket::new(raw_incoming_socket.unwrap());
+        let pool = pool.clone();
+
+        let socket_future = async move {
+            let res = socket_handler(incoming_socket.clone(), pool).await;
+            let raw_incoming_socket = incoming_socket.raw();
+            match res {
+                Ok(_) => s.send(Ok(raw_incoming_socket)),
+                Err(err) => s.send(Err((raw_incoming_socket, err)))
+            }.await.expect("sending request/response result to channel");
+        };
+
+        executor.spawn(
+            socket_future
+                .unit_error()
+                .boxed()
+                .compat()
+        );
     }
 }
 

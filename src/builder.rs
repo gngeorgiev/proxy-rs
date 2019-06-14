@@ -36,7 +36,7 @@ impl ProxyBuilder {
         self
     }
 
-    pub fn build(self) -> Pin<Box<Proxy>> {
+    pub fn build(self) -> Proxy {
         let bind_addr = self._bind_addr.expect("bind_addr is required");
         let remote_addr = self._remote_addr.expect("remote_addr is required");
         let proxy = Proxy {
@@ -52,6 +52,6 @@ impl ProxyBuilder {
             }),
         };
 
-        Box::pin(proxy)
+        proxy
     }
 }
