@@ -1,10 +1,16 @@
-use crate::proxy::Proxy;
-
+use fut_pool::tcp::TcpConnection;
 use fut_pool::Pool;
-use fut_pool_tcp::TcpConnection;
+
 use std::io::Result;
 use std::net::SocketAddr;
 use std::pin::Pin;
+
+use tokio::net::TcpStream;
+
+use futures::compat::*;
+
+use crate::proxy::Proxy;
+use crate::socket::Socket;
 
 pub struct ProxyBuilder {
     _bind_addr: Option<SocketAddr>,
@@ -46,7 +52,10 @@ impl ProxyBuilder {
                 Pool::builder()
                     .factory(move || {
                         debug!("creating new TcpConnection for pool");
+                        //                        TcpStream::connect()
                         TcpConnection::connect(remote_addr)
+                        //                        let conn = TcpStream::connect(&remote_addr).compat().await?;
+                        //                        Ok(Socket::new(conn))
                     })
                     .build()
             }),

@@ -6,7 +6,7 @@ extern crate log;
 use std::sync::Arc;
 
 use fut_pool::*;
-use fut_pool_tcp::TcpConnection;
+use fut_pool::tcp::TcpConnection;
 
 use failure::Error;
 
@@ -32,7 +32,10 @@ fn main() -> Result<(), Error> {
         .remote_addr("127.0.0.1:1338".parse()?)
         .build();
 
-    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let mut rt = tokio::runtime::Builder::new()
+        .core_threads(8)
+        .build()
+        .unwrap();
 
     let ev = proxy.bind(rt.executor())?;
     rt.block_on(
@@ -47,9 +50,9 @@ fn main() -> Result<(), Error> {
 
 async fn handle_proxy_events(mut receiver: ProxyEventReceiver) {
     while let Some(ev) = receiver.next().await {
-        match ev {
-            Ok(socket) => debug!("processed request for socket {:?}", socket),
-            Err((socket, err)) => error!("error {} for socket {:?}", err, socket)
-        }
+//        match ev {
+//            Ok(socket) => debug!("processed request for socket {:?}", socket),
+//            Err((socket, err)) => error!("error {} for socket {:?}", err, socket)
+//        }
     }
 }
