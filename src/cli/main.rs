@@ -1,4 +1,5 @@
 #![feature(async_await)]
+#![allow(warnings)]
 
 #[macro_use]
 extern crate log;
@@ -22,18 +23,21 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use http_muncher::{Parser, ParserHandler};
 
-use proxy_rs::{Proxy, ProxyEventReceiver};
+use proxy_rs::{Proxy, ProxyEventReceiver, adapter::http::HttpAdapter};
+use chrono::Timelike;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn main() -> Result<(), Error> {
-    pretty_env_logger::init();
+    pretty_env_logger::init_timed();
 
     let proxy = Proxy::builder()
         .bind_addr("127.0.0.1:8081".parse()?)
         .remote_addr("127.0.0.1:1338".parse()?)
+        .adapter(|| HttpAdapter::new())
         .build();
 
     let mut rt = tokio::runtime::Builder::new()
-        .core_threads(8)
+        .core_threads(num_cpus::get())
         .build()
         .unwrap();
 

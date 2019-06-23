@@ -20,7 +20,7 @@ path = "src/cli/main.rs"
 [dependencies]
 fut_pool = { path = "../fut_pool" }
 tokio = "0.1"
-futures = { version = "0.3.0-alpha.16", package = "futures-preview", features = ["compat", "async-await", "nightly"] }
+futures = { version = "0.3.0-alpha.16", package = "futures-preview", features = ["compat", "async-await", "nightly", "io-compat"] }
 failure = "0.1"
 crossbeam-channel = "0.3.8"
 http-muncher = "0.3"
@@ -29,3 +29,7 @@ pretty_env_logger = "0.3"
 runtime = "0.3.0-alpha.5"
 futures01 = { package = "futures", version = "0.1" }
 smallvec = "0.6"
+chrono = "0.4"
+num_cpus = "1.10"
+bytes = "0.4"
+parking_lot = "0.8"

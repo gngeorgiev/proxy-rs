@@ -12,7 +12,11 @@ impl Socket {
         Socket(Arc::new(raw_socket))
     }
 
-    pub fn raw(self) -> TcpStream {
+    pub fn try_into_inner(self) -> Result<TcpStream, Arc<TcpStream>> {
+        Arc::try_unwrap(self.0)
+    }
+
+    pub fn into_inner(self) -> TcpStream {
         Arc::try_unwrap(self.0).expect("getting raw TcpStream")
     }
 }
