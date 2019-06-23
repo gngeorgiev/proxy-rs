@@ -27,8 +27,8 @@ pub struct HttpAdapter {
     handler: Option<Mutex<HttpParserHandler>>,
 }
 
-impl HttpAdapter {
-    pub fn new() -> Self {
+impl Default for HttpAdapter {
+    fn default() -> Self {
         HttpAdapter {
             parser: None,
             handler: None,
@@ -37,11 +37,14 @@ impl HttpAdapter {
 }
 
 impl Adapter for HttpAdapter {
+    type Output = ();
+    type Error = ();
+
     fn poll_handle_incoming(
         &mut self,
         cx: &mut Context<'_>,
         incoming: BytesMut,
-    ) -> Poll<io::Result<AdapterAction>> {
+    ) -> Poll<Result<AdapterAction<Self::Output>, Self::Error>> {
         let parser = self
             .parser
             .get_or_insert_with(|| Mutex::new(Parser::request()));
@@ -54,7 +57,7 @@ impl Adapter for HttpAdapter {
             .parse::<HttpParserHandler>(handler.get_mut(), &incoming[..]);
 
         Poll::Ready(Ok(match handler.get_mut().done {
-            true => AdapterAction::WriteAndEnd,
+            true => AdapterAction::WriteAndEnd(()),
             false => AdapterAction::Write,
         }))
     }
@@ -63,7 +66,7 @@ impl Adapter for HttpAdapter {
         &mut self,
         cx: &mut Context<'_>,
         outgoing: BytesMut,
-    ) -> Poll<io::Result<AdapterAction>> {
+    ) -> Poll<Result<AdapterAction<Self::Output>, Self::Error>> {
         let parser = self
             .parser
             .get_or_insert_with(|| Mutex::new(Parser::response()));
@@ -76,7 +79,7 @@ impl Adapter for HttpAdapter {
             .parse::<HttpParserHandler>(handler.get_mut(), &outgoing[..]);
 
         Poll::Ready(Ok(match handler.get_mut().done {
-            true => AdapterAction::WriteAndEnd,
+            true => AdapterAction::WriteAndEnd(()),
             false => AdapterAction::Write,
         }))
     }

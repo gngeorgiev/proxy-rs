@@ -13,18 +13,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="96719935-db67-410f-aa9b-fd655c152044" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/adapter/http/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/adapter/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flamegraph.svg" beforeDir="false" afterPath="$PROJECT_DIR$/flamegraph.svg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/proxy.log" beforeDir="false" afterPath="$PROJECT_DIR$/proxy.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/adapter/http/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/adapter/http/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/adapter/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/adapter/mod.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/builder.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/builder.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/cli/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/cli/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/proxy.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/proxy.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/socket.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/socket.rs" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />

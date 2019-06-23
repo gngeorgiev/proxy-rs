@@ -30,10 +30,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 fn main() -> Result<(), Error> {
     pretty_env_logger::init_timed();
 
-    let proxy = Proxy::builder()
+    let proxy = Proxy::<HttpAdapter>::builder()
         .bind_addr("127.0.0.1:8081".parse()?)
         .remote_addr("127.0.0.1:1338".parse()?)
-        .adapter(|| HttpAdapter::new())
         .build();
 
     let mut rt = tokio::runtime::Builder::new()

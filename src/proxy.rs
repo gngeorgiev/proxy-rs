@@ -32,18 +32,28 @@ use std::time::Duration;
 use bytes::BytesMut;
 use parking_lot::Mutex;
 
+use std::marker::PhantomData;
+
 pub type ProxyEvent = Result<(), ((), io::Error)>;
 pub type ProxyEventReceiver = UnboundedReceiver<ProxyEvent>;
 type ProxyEventSender = UnboundedSender<ProxyEvent>;
 
-pub struct Proxy<A: Adapter + 'static> {
+pub struct Proxy<A: Adapter + 'static>
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     pub(crate) bind_addr: SocketAddr,
     pub(crate) remote_addr: SocketAddr,
     pub(crate) pool: Pool<TcpConnection>,
-    pub(crate) adapter: Arc<AdapterFactory<A>>
+    pub(crate) adapter: PhantomData<A>,
 }
 
-impl<A: Adapter + 'static> Proxy<A> {
+impl<A: Adapter + 'static> Proxy<A>
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     pub fn builder() -> ProxyBuilder<A> {
         ProxyBuilder::new()
     }
@@ -56,7 +66,7 @@ impl<A: Adapter + 'static> Proxy<A> {
         let server = listener.incoming();
 
         let (s, r) = unbounded();
-        let incoming_future = handle_incoming(executor.clone(), server, s, pool, self.adapter.clone());
+        let incoming_future = handle_incoming::<A>(executor.clone(), server, s, pool);
         executor.spawn(
             incoming_future
                 .unit_error()
@@ -73,8 +83,11 @@ async fn handle_incoming<A: Adapter + 'static>(
     server: Incoming,
     event_sender: ProxyEventSender,
     pool: Pool<TcpConnection>,
-    adapter: Arc<AdapterFactory<A>>
-) {
+)
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     let mut server = server.compat();
 
     pool.initialize(100).await.unwrap();
@@ -88,10 +101,9 @@ async fn handle_incoming<A: Adapter + 'static>(
         let mut s = event_sender.clone();
         let incoming_socket = Socket::new(raw_incoming_socket);
         let pool = pool.clone();
-        let adapter = adapter.clone();
 
         let socket_future = async move {
-            let res = socket_handler::<A>(incoming_socket.clone(), pool, adapter).await;
+            let res = socket_handler::<A>(incoming_socket.clone(), pool).await;
             match res {
                 Ok(_) => s.send(Ok(())),
                 Err(err) => s.send(Err(((), err)))
@@ -110,8 +122,11 @@ async fn handle_incoming<A: Adapter + 'static>(
 async fn socket_handler<A: Adapter + 'static>(
     incoming_socket: Socket,
     pool: Pool<TcpConnection>,
-    adapter: Arc<AdapterFactory<A>>,
-) -> io::Result<()> {
+) -> io::Result<()>
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     let mut local_socket = pool.take_unguarded().await?;
 
     let local_socket = Socket::new(local_socket.0);
@@ -119,23 +134,20 @@ async fn socket_handler<A: Adapter + 'static>(
     let (local_read, local_write) = local_socket.clone().split();
     let (incoming_read, incoming_write) = incoming_socket.split();
 
-    let incoming_to_local_adapter = *(*adapter)();
-    let local_to_incoming_adapter = *(*adapter)();
-
     let incoming_to_local = Pipe::new(
         incoming_read,
         local_write,
-        incoming_to_local_adapter,
+        A::default(),
         PipeType::Incoming,
     );
     let local_to_incoming = Pipe::new(
         local_read,
         incoming_write,
-        local_to_incoming_adapter,
+        A::default(),
         PipeType::Outgoing,
     );
 
-    try_join!(incoming_to_local, local_to_incoming)?;
+    try_join!(incoming_to_local, local_to_incoming);
 
     let tcp_connection = TcpConnection::new(local_socket.into_inner());
     pool.put(tcp_connection);
@@ -143,57 +155,87 @@ async fn socket_handler<A: Adapter + 'static>(
     Ok(())
 }
 
+enum PipeError<T> {
+    Io(io::Error),
+    Custom(T)
+}
+
+impl<T> From<io::Error> for PipeError<T> {
+    fn from(e: io::Error) -> Self {
+        PipeError::Io(e)
+    }
+}
+
 enum PipeType {
     Incoming,
     Outgoing,
 }
 
-struct Pipe<A: Adapter + 'static> {
+struct Pipe<A: Adapter>
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     r: ReadHalf<Socket>,
     w: WriteHalf<Socket>,
     a: A,
     t: PipeType,
 }
 
-impl<A: Adapter> Pipe<A> {
+impl<A: Adapter> Pipe<A>
+    where
+        <A as Adapter>::Output: Send,
+        <A as Adapter>::Error: Send,
+{
     fn new(r: ReadHalf<Socket>, w: WriteHalf<Socket>, a: A, t: PipeType) -> Self {
         Pipe {r, w, a, t}
     }
 }
 
-impl<A: Adapter> Future for Pipe<A> {
-    type Output = io::Result<()>;
+macro_rules! poll_future_pipe {
+    ($e:expr) => {
+        match $e {
+            Ok(futures01::Async::Ready(b)) => b,
+            Ok(futures01::Async::NotReady) => return Poll::Pending,
+            Err(err) => return Poll::Ready(Err(PipeError::Io(err))),
+        }
+    };
+}
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+impl<A: Adapter> Future for Pipe<A>
+where
+    <A as Adapter>::Output: Send,
+    <A as Adapter>::Error: Send,
+{
+    type Output = Result<A::Output, PipeError<A::Error>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         use crate::adapter::AdapterAction;
 
         let mut buf = [0; 1024];
-        let n_read = poll_future_01_in_03!(self.r.poll_read(&mut buf));
+        let n_read = poll_future_pipe!(self.r.poll_read(&mut buf));
 
         let mut view = BytesMut::new();
         view.extend_from_slice(&buf[..n_read]);
 
-        let adapter_result_incoming = match &self.t {
+        let adapter_result = match &self.t {
             PipeType::Incoming => ready!(self.a.poll_handle_incoming(cx, view)),
             PipeType::Outgoing => ready!(self.a.poll_handle_outgoing(cx, view)),
         };
-        let adapter_result_incoming = match adapter_result_incoming {
-            Ok(res) => res,
-            Err(err) => return Poll::Ready(Err(err)),
-        };
 
-        match adapter_result_incoming {
-            AdapterAction::WriteAndEnd => {
-                let n_write = poll_future_01_in_03!(self.w.poll_write(&buf[0..n_read]));
-                Poll::Ready(Ok(()))
+        match adapter_result {
+            Ok(res) => match res {
+                AdapterAction::WriteAndEnd(val) => {
+                    poll_future_pipe!(self.w.poll_write(&buf[0..n_read]));
+                    Poll::Ready(Ok(val))
+                },
+                AdapterAction::Write => {
+                    poll_future_pipe!(self.w.poll_write(&buf[0..n_read]));
+                    Poll::Pending
+                },
+                AdapterAction::End(val) => Poll::Ready(Ok(val))
             },
-            AdapterAction::Write => {
-                let n_write = poll_future_01_in_03!(self.w.poll_write(&buf[0..n_read]));
-                Poll::Pending
-            },
-            AdapterAction::End => {
-                Poll::Ready(Ok(()))
-            }
+            Err(err) => Poll::Ready(Err(PipeError::Custom(err))),
         }
     }
 }
