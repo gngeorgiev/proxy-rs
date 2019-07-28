@@ -22,29 +22,28 @@ impl ParserHandler for HttpParserHandler {
     }
 }
 
+#[derive(Default)]
 pub struct HttpAdapter {
     parser: Option<Mutex<Parser>>,
     handler: Option<Mutex<HttpParserHandler>>,
 }
 
-impl Default for HttpAdapter {
-    fn default() -> Self {
-        HttpAdapter {
-            parser: None,
-            handler: None,
-        }
+impl std::fmt::Debug for HttpAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
     }
 }
 
 impl Adapter for HttpAdapter {
-    type Output = ();
+    type IncomingOutput = ();
+    type OutgoingOutput = ();
     type Error = ();
 
     fn poll_handle_incoming(
         &mut self,
         cx: &mut Context<'_>,
-        incoming: BytesMut,
-    ) -> Poll<Result<AdapterAction<Self::Output>, Self::Error>> {
+        incoming: &mut BytesMut,
+    ) -> Poll<Result<AdapterAction<Self::IncomingOutput>, Self::Error>> {
         let parser = self
             .parser
             .get_or_insert_with(|| Mutex::new(Parser::request()));
@@ -65,8 +64,8 @@ impl Adapter for HttpAdapter {
     fn poll_handle_outgoing(
         &mut self,
         cx: &mut Context<'_>,
-        outgoing: BytesMut,
-    ) -> Poll<Result<AdapterAction<Self::Output>, Self::Error>> {
+        outgoing: &mut BytesMut,
+    ) -> Poll<Result<AdapterAction<Self::OutgoingOutput>, Self::Error>> {
         let parser = self
             .parser
             .get_or_insert_with(|| Mutex::new(Parser::response()));

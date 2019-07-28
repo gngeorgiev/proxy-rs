@@ -1,6 +1,7 @@
 use fut_pool::tcp::TcpConnection;
 use fut_pool::Pool;
 
+use std::fmt::Debug;
 use std::io::Result;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -17,24 +18,14 @@ use crate::socket::Socket;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-pub type AdapterFactory<A> = dyn Fn() -> Box<A> + Send + Sync;
-
-pub struct ProxyBuilder<A: Adapter + 'static>
-where
-    <A as Adapter>::Output: Send,
-    <A as Adapter>::Error: Send,
-{
+pub struct ProxyBuilder<A: Adapter> {
     _bind_addr: Option<SocketAddr>,
     _remote_addr: Option<SocketAddr>,
     _pool: Option<Pool<TcpConnection>>,
     _adapter: PhantomData<A>,
 }
 
-impl<A: Adapter + 'static> ProxyBuilder<A>
-where
-    <A as Adapter>::Output: Send,
-    <A as Adapter>::Error: Send,
-{
+impl<A: Adapter> ProxyBuilder<A> {
     pub(crate) fn new() -> Self {
         ProxyBuilder {
             _bind_addr: None,
@@ -65,13 +56,14 @@ where
         let proxy = Proxy {
             bind_addr,
             remote_addr,
-            adapter: self._adapter,
+            events: None,
             pool: self._pool.clone().unwrap_or_else(move || {
                 Pool::builder()
                     .factory(move || {
                         debug!("creating new TcpConnection for pool");
                         TcpConnection::connect(remote_addr)
                     })
+                    .capacity(Some(400))
                     .build()
             }),
         };
